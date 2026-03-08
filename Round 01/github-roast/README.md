@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # 🔥 GitHub Roast Machine
 
@@ -204,4 +204,3 @@ MIT © [DhirajB05](https://github.com/DhirajB05)
   <br>
   <sub>If this roasted you too hard, remember: it's just an AI, and it's probably right.</sub>
 </div>
-]]>
