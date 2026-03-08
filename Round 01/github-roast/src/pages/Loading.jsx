@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
-const API = 'http://localhost:3001';
+const API = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 const STEPS = [
     { msg: '> Cloning your GitHub soul...', type: 'done', delay: 400 },

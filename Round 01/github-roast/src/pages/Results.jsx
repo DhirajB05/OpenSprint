@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 
-const API = 'http://localhost:3001';
+const API = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 const SCORE_COLORS = {
     high: '#22c55e',   // 70+
