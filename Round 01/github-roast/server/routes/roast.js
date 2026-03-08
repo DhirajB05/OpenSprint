@@ -1,8 +1,52 @@
 import express from 'express';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = express.Router();
 
+// ─── In-memory cache with TTL (no external dependency needed) ───
+// Stores roasts keyed by "username:mode" with 24h expiry
+const cache = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in ms
+
+function cacheGet(key) {
+    const entry = cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.exp) { cache.delete(key); return null; }
+    return entry.data;
+}
+
+function cacheSet(key, data) {
+    cache.set(key, { data, exp: Date.now() + CACHE_TTL });
+}
+
+// Optional: Vercel KV (Redis) for production — set KV_REST_API_URL + KV_REST_API_TOKEN
+let kv = null;
+async function initKV() {
+    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+        try {
+            const { kv: vercelKV } = await import('@vercel/kv');
+            kv = vercelKV;
+            console.log('✅ Using Vercel KV (Redis) cache');
+        } catch { /* fallback to in-memory */ }
+    }
+    if (!kv) console.log('📦 Using in-memory cache (24h TTL)');
+}
+initKV();
+
+async function getFromCache(key) {
+    if (kv) {
+        try { return await kv.get(key); } catch { return cacheGet(key); }
+    }
+    return cacheGet(key);
+}
+
+async function setInCache(key, data) {
+    if (kv) {
+        try { await kv.set(key, data, { ex: 86400 }); return; } catch { /* fallback */ }
+    }
+    cacheSet(key, data);
+}
+
+// ─── Archetypes & Mode Prompts ───
 const ARCHETYPES = [
     'Tutorial Hoarder 📚', 'Midnight Coder 🌙', 'Forever In Progress 🚧',
     'Star Chaser ⭐', 'Fork Collector 🍴', 'README Philosopher 📝',
@@ -17,17 +61,55 @@ const MODE_PROMPTS = {
     savage: `You are a brutally honest, no-holds-barred AI roaster who delivers savage but hilarious coding critiques. Be ruthless but stay funny — not hateful. Channel your inner Gordon Ramsay but for code.`
 };
 
+// ─── Groq API call (OpenAI-compatible) ───
+async function callGroq(prompt) {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error('GROQ_API_KEY not configured');
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: 'llama-3.1-8b-instant',
+            messages: [
+                { role: 'system', content: 'You are a JSON-only response bot. Return ONLY valid JSON, no markdown fences, no explanation.' },
+                { role: 'user', content: prompt }
+            ],
+            temperature: 0.9,
+            max_tokens: 1024,
+        }),
+    });
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Groq API ${res.status}: ${err}`);
+    }
+
+    const json = await res.json();
+    return json.choices[0].message.content.trim();
+}
+
+// ─── Route ───
 router.post('/', async (req, res) => {
     const { githubData, mode = 'savage' } = req.body;
     if (!githubData) return res.status(400).json({ error: 'No GitHub data provided' });
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    const cacheKey = `roast:${githubData.username}:${mode}`;
 
     try {
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+        // 1. Check cache first
+        const cached = await getFromCache(cacheKey);
+        if (cached) {
+            console.log(`⚡ Cache hit for @${githubData.username} (${mode})`);
+            return res.json(cached);
+        }
 
+        console.log(`🔥 Generating fresh roast for @${githubData.username} (${mode})`);
+
+        // 2. Build prompt
         const modePrompt = MODE_PROMPTS[mode] || MODE_PROMPTS.savage;
 
         const prompt = `${modePrompt}
@@ -67,35 +149,25 @@ Generate a JSON response with this EXACT structure:
 
 Make each roast line reference SPECIFIC details from their profile (repo names, language choices, follower counts, etc). The bangerQuote must be quotable and tweet-worthy. Score should be 1-100 (be harsh but fair). Return ONLY valid JSON, no markdown fences.`;
 
-        // Retry with backoff for 429 rate limiting
-        let result;
-        for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-                result = await model.generateContent(prompt);
-                break;
-            } catch (retryErr) {
-                if (retryErr.status === 429 && attempt < 2) {
-                    const waitSec = (attempt + 1) * 10;
-                    console.log(`Rate limited, retrying in ${waitSec}s (attempt ${attempt + 1}/3)...`);
-                    await new Promise(r => setTimeout(r, waitSec * 1000));
-                } else {
-                    throw retryErr;
-                }
-            }
-        }
+        // 3. Call Groq API
+        const text = await callGroq(prompt);
 
-        const text = result.response.text().trim();
-
-        // Parse JSON, stripping markdown fences if present
+        // 4. Parse JSON
         const cleaned = text.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
         const data = JSON.parse(cleaned);
 
+        // 5. Cache the result (24h TTL)
+        await setInCache(cacheKey, data);
+        console.log(`💾 Cached roast for @${githubData.username} (${mode})`);
+
         res.json(data);
     } catch (err) {
-        console.error('Roast error:', err);
-        const msg = err.status === 429
-            ? 'Rate limited by Gemini API. Please wait a minute and try again.'
-            : 'Failed to generate roast. Check your GEMINI_API_KEY.';
+        console.error('Roast error:', err.message);
+        const msg = err.message.includes('GROQ_API_KEY')
+            ? 'GROQ_API_KEY not configured. Add it to server/.env'
+            : err.message.includes('429')
+                ? 'Rate limited. Please wait a moment and try again.'
+                : 'Failed to generate roast. Check server logs.';
         res.status(500).json({ error: msg });
     }
 });

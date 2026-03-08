@@ -1,5 +1,8 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
+
+const API = 'http://localhost:3001';
 
 const SCORE_COLORS = {
     high: '#22c55e',   // 70+
@@ -35,14 +38,60 @@ function ScoreRing({ score }) {
     );
 }
 
+/* ─── Meme Card with CSS text overlay ─── */
+function MemeCard({ meme }) {
+    return (
+        <div className="meme-card">
+            <div className="meme-image-wrap">
+                <img src={meme.imageUrl} alt={meme.templateName} className="meme-img" crossOrigin="anonymous" />
+                {meme.topText && (
+                    <div className="meme-text meme-text-top">{meme.topText}</div>
+                )}
+                {meme.bottomText && (
+                    <div className="meme-text meme-text-bottom">{meme.bottomText}</div>
+                )}
+            </div>
+            <div className="meme-template-name">{meme.templateName}</div>
+        </div>
+    );
+}
+
 export default function Results() {
     const { state } = useLocation();
     const navigate = useNavigate();
-    const hasInit = useRef(false);
+    const [memes, setMemes] = useState([]);
+    const [memesLoading, setMemesLoading] = useState(false);
+    const hasFetchedMemes = useRef(false);
 
     useEffect(() => {
         if (!state) navigate('/');
     }, [state, navigate]);
+
+    // Auto-fetch memes when roast data is available
+    useEffect(() => {
+        if (!state?.roastData || hasFetchedMemes.current) return;
+        hasFetchedMemes.current = true;
+
+        const fetchMemes = async () => {
+            setMemesLoading(true);
+            try {
+                const res = await axios.post(`${API}/api/meme/generate`, {
+                    archetype: state.roastData.archetype,
+                    bangerQuote: state.roastData.bangerQuote,
+                    roastLines: state.roastData.roastLines,
+                    topLanguages: state.githubData?.topLanguages,
+                    username: state.githubData?.username,
+                    score: state.roastData.score,
+                });
+                setMemes(res.data);
+            } catch (err) {
+                console.error('Failed to load memes:', err);
+            }
+            setMemesLoading(false);
+        };
+
+        fetchMemes();
+    }, [state]);
 
     if (!state) return null;
 
@@ -56,9 +105,9 @@ export default function Results() {
                     <h2 style={{ marginBottom: '0.75rem', fontSize: '1.5rem' }}>Roast Failed</h2>
                     <div className="error-box" style={{ maxWidth: 480, textAlign: 'center' }}>
                         {error}
-                        {error.includes('GEMINI_API_KEY') && (
+                        {error.includes('GROQ_API_KEY') && (
                             <div style={{ marginTop: '0.5rem', color: '#fbbf24', fontSize: '0.82rem' }}>
-                                💡 Add your GEMINI_API_KEY to <code>server/.env</code> and restart the server.
+                                💡 Add your GROQ_API_KEY to <code>server/.env</code> and restart the server.
                             </div>
                         )}
                         {error.toLowerCase().includes('rate limit') && (
@@ -162,6 +211,25 @@ export default function Results() {
                     </div>
                 )}
 
+                {/* ─── AUTO-GENERATED MEMES ─── */}
+                <div className="memes-section">
+                    <div className="memes-section-title">🎭 Your Roast Memes</div>
+                    <p className="memes-section-sub">AI picked the perfect memes for your roast. Screenshot & share!</p>
+
+                    {memesLoading ? (
+                        <div className="memes-loading">
+                            <div className="meme-spinner" />
+                            <span>Generating your memes...</span>
+                        </div>
+                    ) : memes.length > 0 ? (
+                        <div className="memes-grid">
+                            {memes.map((meme, i) => (
+                                <MemeCard key={i} meme={meme} />
+                            ))}
+                        </div>
+                    ) : null}
+                </div>
+
                 {/* Tip */}
                 {tip && (
                     <div className="tip-box">
@@ -180,15 +248,8 @@ export default function Results() {
                 {/* Actions */}
                 <div className="action-grid">
                     <button
-                        id="create-meme-btn"
-                        className="action-btn primary"
-                        onClick={() => navigate('/meme', { state: { githubData, roastData, mode } })}
-                    >
-                        🎨 Create Meme
-                    </button>
-                    <button
                         id="roast-card-btn"
-                        className="action-btn secondary"
+                        className="action-btn primary"
                         onClick={() => navigate('/card', { state: { githubData, roastData, mode } })}
                     >
                         🃏 Roast Card
@@ -211,6 +272,12 @@ export default function Results() {
                     >
                         in Share on LinkedIn
                     </a>
+                    <button
+                        className="action-btn secondary"
+                        onClick={() => navigate('/')}
+                    >
+                        🔁 Roast Someone Else
+                    </button>
                 </div>
             </div>
         </div>
