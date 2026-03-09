@@ -1,4 +1,5 @@
 import express from 'express';
+import fetch from 'node-fetch';
 
 const router = express.Router();
 
@@ -57,8 +58,20 @@ const ARCHETYPES = [
 
 const MODE_PROMPTS = {
     friendly: `You are a warm, encouraging friend who gently teases a developer with light-hearted humor. Use lots of emojis. Be supportive but funny.`,
-    sarcastic: `You are a sarcastic but brilliant tech lead who uses dry wit and irony. You're not mean, just deliciously sarcastic. Channel your inner snarky code reviewer.`,
-    savage: `You are a brutally honest, no-holds-barred AI roaster who delivers savage but hilarious coding critiques. Be ruthless but stay funny — not hateful. Channel your inner Gordon Ramsay but for code.`
+    sarcastic: `You are a sarcastic but brilliant tech lead who uses dry wit and irony. You're not mean, just deliciously sarcastic. Channel your inner snarky code reviewer who's had 4 espressos.`,
+    savage: `You are an UNHINGED, absolutely FERAL AI roast comedian who makes the crowd GASP before they laugh. You are Gordon Ramsay reviewing spaghetti code, Simon Cowell watching a coding bootcamp demo, and a disappointed Indian dad seeing his kid chose humanities — ALL AT ONCE.
+
+Your style:
+- Make pop culture comparisons ("Your GitHub is like Fyre Festival — great marketing, zero delivery")
+- Use hilariously specific analogies ("Your commit history reads like a ransom note — sporadic, desperate, and deeply unsettling")
+- Reference meme culture ("Bro really said 'I know Python' and has 2 repos that print Hello World 💀")
+- Weaponize their own data against them (exact numbers, repo names, follower counts)
+- Each line should make them WHEEZE-laugh and then have an existential crisis
+- Mix devastating burns with absurdist humor — be the love child of a roast battle champion and a shitpost lord
+- Use Gen-Z/meme humor where appropriate ("not the ___ 💀", "bro thinks he's ___", "the audacity", "sir this is a Wendy's", "ratio")
+- Every line should be SCREENSHOT-WORTHY. People should want to share these.
+- NO generic jokes. Every single roast must reference THEIR specific profile data.
+- The humor should be so brutal it circles back to being affectionate — like roasting your best friend at their wedding.`
 };
 
 // ─── Groq API call (OpenAI-compatible) ───
@@ -78,8 +91,8 @@ async function callGroq(prompt) {
                 { role: 'system', content: 'You are a JSON-only response bot. Return ONLY valid JSON, no markdown fences, no explanation.' },
                 { role: 'user', content: prompt }
             ],
-            temperature: 0.9,
-            max_tokens: 1024,
+            temperature: 1.0,
+            max_tokens: 1536,
         }),
     });
 
@@ -134,20 +147,40 @@ Generate a JSON response with this EXACT structure:
 {
   "archetype": "One of these archetypes that best fits them: ${ARCHETYPES.join(', ')}",
   "roastLines": [
-    "Line 1 starting with an emoji - a specific roast about their repos/languages/stats",
-    "Line 2 starting with an emoji - another specific roast",
-    "Line 3 starting with an emoji - roast about their commit style or repo count",
-    "Line 4 starting with an emoji - roast about something specific in their profile",
-    "Line 5 starting with an emoji - a final savage/funny observation",
-    "Line 6 starting with an emoji - optional bonus roast if there's material"
+    "Line 1 with emoji - a DEVASTATING opener about their repos/stars. Use their actual repo names and numbers. Make it so specific it's scary.",
+    "Line 2 with emoji - roast their star-to-repo ratio with a pop culture comparison (e.g., 'X stars across Y repos is like being employee of the month at a company that's going bankrupt')",
+    "Line 3 with emoji - attack their account age vs output. If they've been on GitHub for years with little to show, DESTROY them. Use math to humiliate.",
+    "Line 4 with emoji - roast their bio/README/repo descriptions or lack thereof. If they have 'Debugging one life at a time' in their bio, obliterate them for it.",
+    "Line 5 with emoji - a WILDLY funny, absurd comparison. Compare their GitHub to something unexpected (a restaurant with no food, a gym membership never used, a résumé written in crayon, etc)",
+    "Line 6 with emoji - THE KILL SHOT. The most quotable, screenshot-worthy, absolutely nuclear observation about their entire developer existence. This line alone should go viral."
   ],
-  "bangerQuote": "A single unforgettable, shareable roast quote under 140 chars that summarizes their coding persona perfectly",
-  "score": 67,
-  "scoreLabel": "Commit Chaos Survivor",
-  "tip": "One genuinely useful but funny tip for them to improve"
+  "bangerQuote": "A single DEVASTATING one-liner under 140 chars. This quote should make them laugh so hard they cry, then cry for real. Think viral tweet energy. Include their username or a specific detail.",
+  "score": <calculate using the formula below>,
+  "scoreLabel": "A FUNNY, quirky badge title — not generic. Examples: 'GitHub Tourist 🗺️', 'Ctrl+C Ctrl+Career 📋', 'Professional README Reader 📖', 'Git Blame's Favorite Target 🎯'",
+  "tip": "One genuinely useful tip delivered in the most backhanded, savage way possible. Be helpful but make it sting."
 }
 
-Make each roast line reference SPECIFIC details from their profile (repo names, language choices, follower counts, etc). The bangerQuote must be quotable and tweet-worthy. Score should be 1-100 (be harsh but fair). Return ONLY valid JSON, no markdown fences.`;
+SCORE FORMULA (calculate this precisely based on their ACTUAL data):
+- Base: 30 points
+- Stars: 0 = -10 | 1-5 = +0 | 6-20 = +5 | 21-100 = +10 | 100-500 = +15 | 500+ = +25
+- Own repos (non-forks): 0-2 = -5 | 3-5 = +0 | 6-15 = +5 | 16-30 = +10 | 30+ = +15
+- Fork ratio: >50% forks = -10
+- Account age penalty: 3+ years with <5 own repos = -15 (they're just collecting dust)
+- Followers: 0 = -10 | 1-5 = -5 | 6-20 = +0 | 21-100 = +5 | 100-500 = +10 | 500+ = +20
+- Languages: only 1 = -5 | 2-3 = +0 | 4+ = +5
+- README profile: has one = +5 | none = -5
+- Cap between 1-100. Average devs = 15-45. Only legends score 60+. Beginners with empty repos = 10-25.
+
+THIS PROFILE's DATA: ${githubData.totalStars} total stars, ${githubData.ownRepoCount} own repos out of ${githubData.publicRepos} total (${githubData.forkedCount} forks), ${githubData.followers} followers, ${githubData.accountAge} years on GitHub, languages: ${githubData.topLanguages.join(', ') || 'none'}. ${githubData.readme ? 'Has README.' : 'No README.'} CALCULATE THE SCORE HONESTLY.
+
+CRITICAL RULES:
+- Every roast line MUST mention specific data (repo names, exact numbers, languages used)
+- The bangerQuote must be so brutal yet funny that someone would tweet it immediately
+- NO generic developer jokes. Everything must be about THIS specific person's profile
+- Use their bio against them if they have one
+- If they have embarrassingly few stars/followers, mention the exact numbers
+${mode === 'savage' ? '- THIS IS SAVAGE MODE. Your roast should make them consider deleting their GitHub account, switching to gardening as a career, and changing their name. Every line is a WAR CRIME against their coding self-esteem. Make them WHEEZE. Make them CRY. Make them screenshot it and send it to friends because it\'s THAT good.' : ''}
+Return ONLY valid JSON, no markdown fences.`;
 
         // 3. Call Groq API
         const text = await callGroq(prompt);

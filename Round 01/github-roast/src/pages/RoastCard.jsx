@@ -193,12 +193,6 @@ export default function RoastCard() {
                     </a>
                     <button
                         className="action-btn secondary"
-                        onClick={() => navigate('/meme', { state })}
-                    >
-                        🎨 Create Meme Instead
-                    </button>
-                    <button
-                        className="action-btn secondary"
                         onClick={() => navigate('/results', { state })}
                     >
                         ← Back to Roast

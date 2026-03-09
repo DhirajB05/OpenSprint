@@ -1465,7 +1465,7 @@ canvas#meme-canvas {
   }
 
   .memes-grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 }
 
@@ -1495,7 +1495,7 @@ canvas#meme-canvas {
 
 .memes-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1.25rem;
 }
 
@@ -1519,6 +1519,10 @@ canvas#meme-canvas {
 
 .meme-card:nth-child(3) {
   animation-delay: 0.4s;
+}
+
+.meme-card:nth-child(4) {
+  animation-delay: 0.55s;
 }
 
 .meme-card:hover {

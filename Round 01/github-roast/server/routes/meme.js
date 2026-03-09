@@ -1,4 +1,5 @@
 import express from 'express';
+import fetch from 'node-fetch';
 
 const router = express.Router();
 
@@ -15,15 +16,15 @@ const MEME_TEMPLATES = [
     { id: 'one-does-not', name: 'One Does Not Simply', url: 'https://i.imgflip.com/1bij.jpg', format: 'top-bottom', desc: 'One does not simply [do something hard]' },
     { id: 'waiting-skeleton', name: 'Waiting Skeleton', url: 'https://i.imgflip.com/2fm6x.jpg', format: 'top-bottom', desc: 'Waiting forever for something that never happens' },
     { id: 'monkey-puppet', name: 'Monkey Puppet', url: 'https://i.imgflip.com/2gnnjh.jpg', format: 'top-bottom', desc: 'Awkward side-eye look when caught or uncomfortable' },
-    { id: 'always-has-been', name: 'Always Has Been', url: 'https://i.imgflip.com/46e43q.jpg', format: 'top-bottom', desc: 'Wait its all X? Always has been' },
+    { id: 'always-has-been', name: 'Always Has Been', url: 'https://i.imgflip.com/46e43q.png', format: 'top-bottom', desc: 'Wait its all X? Always has been' },
     { id: 'disaster-girl', name: 'Disaster Girl', url: 'https://i.imgflip.com/23ls.jpg', format: 'top-bottom', desc: 'Evil smile while everything burns behind' },
     { id: 'hide-pain', name: 'Hide the Pain Harold', url: 'https://i.imgflip.com/gk5el.jpg', format: 'top-bottom', desc: 'Smiling through pain and internal suffering' },
     { id: 'left-exit', name: 'Left Exit 12 Off Ramp', url: 'https://i.imgflip.com/22bdq6.jpg', format: 'top-bottom', desc: 'Car swerving to take the exit (choosing the worse option)' },
     { id: 'spongebob-mock', name: 'Mocking SpongeBob', url: 'https://i.imgflip.com/1otk96.jpg', format: 'top-bottom', desc: 'Mocking someone by repeating their words in alternating caps' },
     { id: 'is-this', name: 'Is This a Pigeon', url: 'https://i.imgflip.com/1o00in.jpg', format: 'top-bottom', desc: 'Pointing at something and completely misidentifying it' },
     { id: 'expanding-brain', name: 'Expanding Brain', url: 'https://i.imgflip.com/1jwhww.jpg', format: 'top-bottom', desc: 'Increasingly "enlightened" ideas (usually the worst ones)' },
-    { id: 'boardroom', name: 'Boardroom Meeting', url: 'https://i.imgflip.com/zfcfn.jpg', format: 'top-bottom', desc: 'Boss throws person out window for suggesting the right thing' },
-    { id: 'stonks', name: 'Stonks', url: 'https://i.imgflip.com/3lv23n.png', format: 'top-bottom', desc: 'Doing something dumb but calling it success' },
+    { id: 'boardroom', name: 'Boardroom Meeting', url: 'https://i.imgflip.com/39t1o.jpg', format: 'top-bottom', desc: 'Boss throws person out window for suggesting the right thing' },
+    { id: 'stonks', name: 'Stonks', url: 'https://i.imgflip.com/261o3j.jpg', format: 'top-bottom', desc: 'Doing something dumb but calling it success' },
 ];
 
 // ─── Groq API call ───
@@ -71,11 +72,12 @@ Some roast lines: ${(roastLines || []).slice(0, 3).join(' | ')}
 Available meme templates:
 ${templateList}
 
-Pick exactly 3 different meme templates that BEST match this developer's roast. For each, write SHORT, PUNCHY, VIRAL meme captions. Keep text under 60 chars per line. Make them genuinely funny — internet-native humor, dev jokes, stuff people would actually share.
+Pick exactly 4 different meme templates that BEST match this developer's roast. For each, write SHORT, PUNCHY, VIRAL meme captions. Keep text under 60 chars per line. Make them genuinely funny — internet-native humor, dev jokes, stuff people would actually share.
 
-Return a JSON array of exactly 3 objects:
+Return a JSON array of exactly 4 objects:
 [
   { "templateName": "exact name from list", "topText": "TOP LINE", "bottomText": "BOTTOM LINE / PUNCHLINE" },
+  { "templateName": "exact name from list", "topText": "TOP LINE", "bottomText": "BOTTOM LINE" },
   { "templateName": "exact name from list", "topText": "TOP LINE", "bottomText": "BOTTOM LINE" },
   { "templateName": "exact name from list", "topText": "TOP LINE", "bottomText": "BOTTOM LINE" }
 ]
@@ -83,11 +85,15 @@ Return a JSON array of exactly 3 objects:
 Return ONLY the JSON array.`;
 
         const text = await callGroq(prompt);
-        const cleaned = text.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
+        // Robust JSON cleanup
+        const jsonStart = text.indexOf('[');
+        const jsonEnd = text.lastIndexOf(']') + 1;
+        if (jsonStart === -1 || jsonEnd === 0) throw new Error('Invalid JSON format from AI');
+        const cleaned = text.slice(jsonStart, jsonEnd);
         const picks = JSON.parse(cleaned);
 
         // Map template names to URLs
-        const memes = picks.map(pick => {
+        const memes = picks.slice(0, 4).map(pick => {
             const template = MEME_TEMPLATES.find(t =>
                 t.name.toLowerCase() === pick.templateName.toLowerCase()
             ) || MEME_TEMPLATES[Math.floor(Math.random() * MEME_TEMPLATES.length)];
