@@ -27,31 +27,57 @@ const MEME_TEMPLATES = [
     { id: 'stonks', name: 'Stonks', url: 'https://i.imgflip.com/261o3j.jpg', format: 'top-bottom', desc: 'Doing something dumb but calling it success' },
 ];
 
+// ─── Supported Groq Models with Auto-Fallback ───
+const CANDIDATE_MODELS = [
+    process.env.GROQ_MODEL,
+    'openai/gpt-oss-20b',
+    'llama-3.3-70b-versatile',
+].filter(Boolean);
+
 // ─── Groq API call ───
 async function callGroq(prompt) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY not configured');
 
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-                { role: 'system', content: 'You are a JSON-only response bot. Return ONLY valid JSON arrays, no markdown fences, no explanation.' },
-                { role: 'user', content: prompt }
-            ],
-            temperature: 1.0,
-            max_tokens: 512,
-        }),
-    });
+    let lastError = null;
+    for (const model of CANDIDATE_MODELS) {
+        try {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [
+                        { role: 'system', content: 'You are a JSON-only response bot. Return ONLY valid JSON arrays, no markdown fences, no explanation.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 1.0,
+                    max_tokens: 512,
+                }),
+            });
 
-    if (!res.ok) throw new Error(`Groq API ${res.status}`);
-    const json = await res.json();
-    return json.choices[0].message.content.trim();
+            if (!res.ok) {
+                const err = await res.text();
+                if (res.status === 404 || err.includes('model_not_found')) {
+                    console.warn(`⚠️ Groq model ${model} not found for memes, trying next...`);
+                    lastError = new Error(`Groq API ${res.status}: ${err}`);
+                    continue;
+                }
+                throw new Error(`Groq API ${res.status}: ${err}`);
+            }
+
+            const json = await res.json();
+            return json.choices[0].message.content.trim();
+        } catch (err) {
+            lastError = err;
+            if (err.message && err.message.includes('model_not_found')) continue;
+            throw err;
+        }
+    }
+    throw lastError || new Error('All candidate Groq models failed');
 }
 
 // ─── Route: Auto-generate 3 memes based on roast ───

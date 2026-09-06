@@ -74,35 +74,157 @@ Your style:
 - The humor should be so brutal it circles back to being affectionate — like roasting your best friend at their wedding.`
 };
 
+// ─── Supported Groq Models with Auto-Fallback ───
+const CANDIDATE_MODELS = [
+    process.env.GROQ_MODEL,
+    'openai/gpt-oss-20b',
+    'llama-3.3-70b-versatile',
+].filter(Boolean);
+
 // ─── Groq API call (OpenAI-compatible) ───
 async function callGroq(prompt) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) throw new Error('GROQ_API_KEY not configured');
 
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-                { role: 'system', content: 'You are a JSON-only response bot. Return ONLY valid JSON, no markdown fences, no explanation.' },
-                { role: 'user', content: prompt }
-            ],
-            temperature: 1.0,
-            max_tokens: 1536,
-        }),
-    });
+    let lastError = null;
+    for (const model of CANDIDATE_MODELS) {
+        try {
+            const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [
+                        { role: 'system', content: 'You are a JSON-only response bot. Return ONLY valid JSON, no markdown fences, no explanation.' },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature: 1.0,
+                    max_tokens: 1536,
+                }),
+            });
 
-    if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Groq API ${res.status}: ${err}`);
+            if (!res.ok) {
+                const err = await res.text();
+                if (res.status === 404 || err.includes('model_not_found')) {
+                    console.warn(`⚠️ Groq model ${model} not found, trying next candidate...`);
+                    lastError = new Error(`Groq API ${res.status}: ${err}`);
+                    continue;
+                }
+                throw new Error(`Groq API ${res.status}: ${err}`);
+            }
+
+            const json = await res.json();
+            return json.choices[0].message.content.trim();
+        } catch (err) {
+            lastError = err;
+            if (err.message && err.message.includes('model_not_found')) continue;
+            throw err;
+        }
     }
+    throw lastError || new Error('All candidate Groq models failed');
+}
 
-    const json = await res.json();
-    return json.choices[0].message.content.trim();
+// ─── Robust JSON Parser ───
+function extractJSON(text) {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}') + 1;
+    if (start === -1 || end <= start) {
+        throw new Error('No valid JSON object found in AI response');
+    }
+    return JSON.parse(text.slice(start, end));
+}
+
+// ─── Heuristic Fallback Roast Generator ───
+function generateFallbackRoast(githubData, mode = 'savage') {
+    const username = githubData.username || 'developer';
+    const stars = githubData.totalStars || 0;
+    const ownRepos = githubData.ownRepoCount || 0;
+    const totalRepos = githubData.publicRepos || ownRepos;
+    const forks = githubData.forkedCount || 0;
+    const age = githubData.accountAge || 1;
+    const followers = githubData.followers || 0;
+    const languages = githubData.topLanguages || [];
+    const topLang = languages[0] || 'JavaScript';
+    const repoNames = githubData.repoNames || [];
+    const sampleRepo = repoNames[0] || 'hello-world';
+
+    // Calculate score
+    let score = 30;
+    if (stars === 0) score -= 10;
+    else if (stars <= 5) score += 0;
+    else if (stars <= 20) score += 5;
+    else if (stars <= 100) score += 10;
+    else if (stars <= 500) score += 15;
+    else score += 25;
+
+    if (ownRepos <= 2) score -= 5;
+    else if (ownRepos <= 5) score += 0;
+    else if (ownRepos <= 15) score += 5;
+    else if (ownRepos <= 30) score += 10;
+    else score += 15;
+
+    if (totalRepos > 0 && (forks / totalRepos) > 0.5) score -= 10;
+    if (age >= 3 && ownRepos < 5) score -= 15;
+
+    if (followers === 0) score -= 10;
+    else if (followers <= 5) score -= 5;
+    else if (followers <= 20) score += 0;
+    else if (followers <= 100) score += 5;
+    else if (followers <= 500) score += 10;
+    else score += 20;
+
+    if (languages.length <= 1) score -= 5;
+    else if (languages.length <= 3) score += 0;
+    else score += 5;
+
+    if (githubData.readme) score += 5;
+    else score -= 5;
+
+    score = Math.max(5, Math.min(99, score));
+
+    // Archetype
+    let archetype = 'Tutorial Hoarder 📚';
+    if (forks > ownRepos) archetype = 'Fork Collector 🍴';
+    else if (stars === 0 && ownRepos > 5) archetype = 'Star Chaser ⭐';
+    else if (age >= 3 && ownRepos < 5) archetype = 'The Ghost Committer 👻';
+    else if (languages.length === 1) archetype = 'One-Language Wonder 🎯';
+    else if (ownRepos > 20) archetype = 'Serial Abandonist 🏃';
+    else if (score < 25) archetype = 'The Eternal Beginner 🌱';
+
+    // Score label
+    let scoreLabel = 'GitHub Tourist 🗺️';
+    if (score >= 80) scoreLabel = 'Certified 10x Legend 🏆';
+    else if (score >= 60) scoreLabel = 'Senior Ctrl+C Architect 💼';
+    else if (score >= 40) scoreLabel = 'Git Blame Target 🎯';
+    else if (score >= 25) scoreLabel = 'Professional README Reader 📖';
+
+    // Roast lines
+    const roastLines = [
+        `📦 ${ownRepos} original repos out of ${totalRepos}. The rest are just forks you clicked on at 3 AM and forgot existed.`,
+        `⭐ ${stars} total stars across ${totalRepos} repos. A blank README on Twitter gets higher organic engagement than this profile.`,
+        `⏳ ${age} years on GitHub and your most active commit streak was fixing a typo in your own username.`,
+        `💻 Primary language: ${topLang}. Looks like 90% of your codebase is copy-pasted directly from Stack Overflow answers.`,
+        `📁 Repos like "${sampleRepo}" looking like archaeological ruins of abandoned weekend motivation.`,
+        `💀 The audit concluded: @${username}'s commit graph looks like Morse code signaling for immediate help.`
+    ];
+
+    const bangerQuote = stars > 500
+        ? `@${username} has ${stars} stars but still commits with messages like 'fixed stuff pls work' 💀`
+        : `Bro has ${stars} stars across ${totalRepos} repos and calls himself a software architect 💀`;
+
+    const tip = `Pick one repo, like "${sampleRepo}", and actually finish it before creating 10 more empty directories.`;
+
+    return {
+        archetype,
+        roastLines,
+        bangerQuote,
+        score,
+        scoreLabel,
+        tip
+    };
 }
 
 // ─── Route ───
@@ -122,10 +244,12 @@ router.post('/', async (req, res) => {
 
         console.log(`🔥 Generating fresh roast for @${githubData.username} (${mode})`);
 
-        // 2. Build prompt
-        const modePrompt = MODE_PROMPTS[mode] || MODE_PROMPTS.savage;
+        let data = null;
+        try {
+            // 2. Build prompt
+            const modePrompt = MODE_PROMPTS[mode] || MODE_PROMPTS.savage;
 
-        const prompt = `${modePrompt}
+            const prompt = `${modePrompt}
 
 Here is a GitHub developer profile to roast:
 
@@ -156,7 +280,7 @@ Generate a JSON response with this EXACT structure:
   ],
   "bangerQuote": "A single DEVASTATING one-liner under 140 chars. This quote should make them laugh so hard they cry, then cry for real. Think viral tweet energy. Include their username or a specific detail.",
   "score": <calculate using the formula below>,
-  "scoreLabel": "A FUNNY, quirky badge title — not generic. Examples: 'GitHub Tourist 🗺️', 'Ctrl+C Ctrl+Career 📋', 'Professional README Reader 📖', 'Git Blame's Favorite Target 🎯'",
+  "scoreLabel": "A FUNNY, quirky badge title — not generic. Examples: 'GitHub Tourist 🗺️', 'Ctrl+C Ctrl+Career 📋', 'Professional README Reader 📖', 'Git Blame\\'s Favorite Target 🎯'",
   "tip": "One genuinely useful tip delivered in the most backhanded, savage way possible. Be helpful but make it sting."
 }
 
@@ -182,12 +306,15 @@ CRITICAL RULES:
 ${mode === 'savage' ? '- THIS IS SAVAGE MODE. Your roast should make them consider deleting their GitHub account, switching to gardening as a career, and changing their name. Every line is a WAR CRIME against their coding self-esteem. Make them WHEEZE. Make them CRY. Make them screenshot it and send it to friends because it\'s THAT good.' : ''}
 Return ONLY valid JSON, no markdown fences.`;
 
-        // 3. Call Groq API
-        const text = await callGroq(prompt);
+            // 3. Call Groq API
+            const text = await callGroq(prompt);
 
-        // 4. Parse JSON
-        const cleaned = text.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
-        const data = JSON.parse(cleaned);
+            // 4. Parse JSON
+            data = extractJSON(text);
+        } catch (aiErr) {
+            console.warn('⚠️ AI roast generation failed, using intelligent fallback:', aiErr.message);
+            data = generateFallbackRoast(githubData, mode);
+        }
 
         // 5. Cache the result (24h TTL)
         await setInCache(cacheKey, data);
@@ -195,13 +322,8 @@ Return ONLY valid JSON, no markdown fences.`;
 
         res.json(data);
     } catch (err) {
-        console.error('Roast error:', err.message);
-        const msg = err.message.includes('GROQ_API_KEY')
-            ? 'GROQ_API_KEY not configured. Add it to server/.env'
-            : err.message.includes('429')
-                ? 'Rate limited. Please wait a moment and try again.'
-                : 'Failed to generate roast. Check server logs.';
-        res.status(500).json({ error: msg });
+        console.error('Roast route error:', err.message);
+        res.json(generateFallbackRoast(githubData, mode));
     }
 });
 
