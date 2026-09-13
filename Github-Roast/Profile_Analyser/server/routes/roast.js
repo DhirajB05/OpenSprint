@@ -74,6 +74,55 @@ Your style:
 - The humor should be so brutal it circles back to being affectionate — like roasting your best friend at their wedding.`
 };
 
+// ─── Procedural Fallback Roast (Used if Groq fails or rate limits) ───
+function generateFallbackRoast(githubData, mode = 'savage') {
+    const stars = githubData.totalStars || 0;
+    const repos = githubData.ownRepoCount || githubData.publicRepos || 0;
+    const totalRepos = githubData.publicRepos || 0;
+    const forks = githubData.forkedCount || 0;
+    const followers = githubData.followers || 0;
+    const topLang = (githubData.topLanguages && githubData.topLanguages[0]) || 'code';
+    const age = githubData.accountAge || 1;
+    const sampleRepo = (githubData.topRepos && githubData.topRepos[0]?.name) || (githubData.repoNames && githubData.repoNames[0]) || 'my-project';
+
+    const archetypes = {
+        friendly: 'Hopeful Dreamer 🌱',
+        sarcastic: 'Git Blame Target 🎯',
+        savage: forks > totalRepos * 0.4 ? 'Fork Collector 🍴' : stars < 5 ? 'Tutorial Hoarder 📚' : 'Serial Abandonist 🏃'
+    };
+
+    const roastLines = [
+        `🐙 @${githubData.username} has ${totalRepos} repos and ${stars} stars — that's not an active portfolio, that's an open-source memorial.`,
+        `⭐ ${stars} stars across ${totalRepos} repositories is like being employee of the month at a company that went out of business.`,
+        `⏳ ${age} year${age > 1 ? 's' : ''} on GitHub and repos like "${sampleRepo}" are collecting more digital dust than actual commits.`,
+        `📝 Bio: "${githubData.bio || 'None'}" — keeping it empty is smart, admitting what you actually build would just raise questions.`,
+        `💻 Writing ${topLang} with this commit cadence is like claiming you're an athlete because you bought running shoes once.`,
+        `💀 THE KILL SHOT: If your repositories could file for abandonment, you'd be served with a court summons tomorrow.`
+    ];
+
+    const quotes = [
+        `@${githubData.username}'s GitHub is like a gym membership — paid for, bragged about, but never actually used.`,
+        `Rumor has it @${githubData.username}'s favorite git command is 'git push --force' followed by immediate regret.`,
+        `47 abandoned projects and 0 unit tests — @${githubData.username}'s profile is an escalating cry for help.`
+    ];
+
+    const calculatedScore = Math.max(15, Math.min(88, Math.round(
+        30 + (stars > 100 ? 30 : stars > 20 ? 15 : stars > 5 ? 5 : -10)
+        + (repos > 20 ? 15 : repos > 5 ? 5 : -5)
+        + (followers > 50 ? 15 : followers > 10 ? 5 : -5)
+        - (forks > totalRepos * 0.5 ? 10 : 0)
+    )));
+
+    return {
+        archetype: archetypes[mode] || archetypes.savage,
+        roastLines,
+        bangerQuote: quotes[Math.floor(Math.random() * quotes.length)],
+        score: calculatedScore,
+        scoreLabel: calculatedScore > 65 ? 'Certified Overachiever 🏆' : calculatedScore > 40 ? 'Professional README Reader 📖' : 'GitHub Tourist 🗺️',
+        tip: `Push actual working code this week instead of tweaking README formatting for the 14th time.`
+    };
+}
+
 // ─── Groq API call (OpenAI-compatible) ───
 async function callGroq(prompt) {
     const apiKey = process.env.GROQ_API_KEY;
@@ -88,11 +137,12 @@ async function callGroq(prompt) {
         body: JSON.stringify({
             model: 'llama-3.1-8b-instant',
             messages: [
-                { role: 'system', content: 'You are a JSON-only response bot. Return ONLY valid JSON, no markdown fences, no explanation.' },
+                { role: 'system', content: 'You are a JSON-only response bot. You MUST return ONLY valid JSON with no markdown fences, no backticks, and no extra commentary.' },
                 { role: 'user', content: prompt }
             ],
-            temperature: 1.0,
-            max_tokens: 1536,
+            response_format: { type: 'json_object' },
+            temperature: 0.8,
+            max_tokens: 1024,
         }),
     });
 
@@ -103,6 +153,32 @@ async function callGroq(prompt) {
 
     const json = await res.json();
     return json.choices[0].message.content.trim();
+}
+
+function extractJSON(text) {
+    if (!text) throw new Error('Empty response from AI');
+    const trimmed = text.trim();
+    try {
+        return JSON.parse(trimmed);
+    } catch (_) {}
+
+    // Clean any markdown fences
+    const stripped = trimmed.replace(/```json/gi, '').replace(/```/g, '').trim();
+    try {
+        return JSON.parse(stripped);
+    } catch (_) {}
+
+    // Find JSON boundary braces
+    const firstBrace = stripped.indexOf('{');
+    const lastBrace = stripped.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const sub = stripped.slice(firstBrace, lastBrace + 1);
+        try {
+            return JSON.parse(sub);
+        } catch (_) {}
+    }
+
+    throw new Error('Unable to parse JSON from AI response');
 }
 
 // ─── Route ───
@@ -130,64 +206,42 @@ router.post('/', async (req, res) => {
 Here is a GitHub developer profile to roast:
 
 Username: ${githubData.username}
-Name: ${githubData.name}
+Name: ${githubData.name || githubData.username}
 Bio: ${githubData.bio || 'None (suspicious)'}
-Account Age: ${githubData.accountAge} years
-Public Repos: ${githubData.publicRepos} (${githubData.forkedCount} are forks 👀)
-Own Repos: ${githubData.ownRepoCount}
-Total Stars: ${githubData.totalStars}
-Followers: ${githubData.followers} | Following: ${githubData.following}
-Top Languages: ${githubData.topLanguages.join(', ') || 'None detected (yikes)'}
-Top Repos: ${githubData.topRepos.map(r => `${r.name} (⭐${r.stars}, ${r.lang}): ${r.description || 'no description'}`).join(' | ')}
-Some repo names: ${githubData.repoNames.slice(0, 10).join(', ')}
-Location: ${githubData.location || 'Unknown (hiding)'}
-${githubData.readme ? `README snippet: "${githubData.readme.slice(0, 500)}"` : 'No README (they gave up)'}
+Account Age: ${githubData.accountAge || 1} years
+Public Repos: ${githubData.publicRepos || 0} (${githubData.forkedCount || 0} are forks)
+Own Repos: ${githubData.ownRepoCount || 0}
+Total Stars: ${githubData.totalStars || 0}
+Followers: ${githubData.followers || 0} | Following: ${githubData.following || 0}
+Top Languages: ${(githubData.topLanguages || []).join(', ') || 'None detected'}
+Top Repos: ${(githubData.topRepos || []).map(r => `${r.name} (⭐${r.stars || 0}, ${r.lang || 'code'}): ${r.description || 'no description'}`).join(' | ') || 'None'}
+Some repo names: ${(githubData.repoNames || []).slice(0, 10).join(', ') || 'None'}
+Location: ${githubData.location || 'Unknown'}
 
 Generate a JSON response with this EXACT structure:
 {
-  "archetype": "One of these archetypes that best fits them: ${ARCHETYPES.join(', ')}",
+  "archetype": "One matching archetype from: ${ARCHETYPES.join(', ')}",
   "roastLines": [
-    "Line 1 with emoji - a DEVASTATING opener about their repos/stars. Use their actual repo names and numbers. Make it so specific it's scary.",
-    "Line 2 with emoji - roast their star-to-repo ratio with a pop culture comparison (e.g., 'X stars across Y repos is like being employee of the month at a company that's going bankrupt')",
-    "Line 3 with emoji - attack their account age vs output. If they've been on GitHub for years with little to show, DESTROY them. Use math to humiliate.",
-    "Line 4 with emoji - roast their bio/README/repo descriptions or lack thereof. If they have 'Debugging one life at a time' in their bio, obliterate them for it.",
-    "Line 5 with emoji - a WILDLY funny, absurd comparison. Compare their GitHub to something unexpected (a restaurant with no food, a gym membership never used, a résumé written in crayon, etc)",
-    "Line 6 with emoji - THE KILL SHOT. The most quotable, screenshot-worthy, absolutely nuclear observation about their entire developer existence. This line alone should go viral."
+    "Line 1 with emoji - roast their repos/stars with specific details",
+    "Line 2 with emoji - roast star-to-repo ratio with a hilarious analogy",
+    "Line 3 with emoji - attack account age vs output",
+    "Line 4 with emoji - roast their bio/descriptions",
+    "Line 5 with emoji - wildly funny comparison",
+    "Line 6 with emoji - THE KILL SHOT: most viral, screenshot-worthy observation"
   ],
-  "bangerQuote": "A single DEVASTATING one-liner under 140 chars. This quote should make them laugh so hard they cry, then cry for real. Think viral tweet energy. Include their username or a specific detail.",
-  "score": <calculate using the formula below>,
-  "scoreLabel": "A FUNNY, quirky badge title — not generic. Examples: 'GitHub Tourist 🗺️', 'Ctrl+C Ctrl+Career 📋', 'Professional README Reader 📖', 'Git Blame's Favorite Target 🎯'",
-  "tip": "One genuinely useful tip delivered in the most backhanded, savage way possible. Be helpful but make it sting."
+  "bangerQuote": "A single DEVASTATING viral quote under 140 chars referencing @${githubData.username}.",
+  "score": 35,
+  "scoreLabel": "A funny quirky badge title",
+  "tip": "One useful tip delivered in a backhanded, savage way."
 }
 
-SCORE FORMULA (calculate this precisely based on their ACTUAL data):
-- Base: 30 points
-- Stars: 0 = -10 | 1-5 = +0 | 6-20 = +5 | 21-100 = +10 | 100-500 = +15 | 500+ = +25
-- Own repos (non-forks): 0-2 = -5 | 3-5 = +0 | 6-15 = +5 | 16-30 = +10 | 30+ = +15
-- Fork ratio: >50% forks = -10
-- Account age penalty: 3+ years with <5 own repos = -15 (they're just collecting dust)
-- Followers: 0 = -10 | 1-5 = -5 | 6-20 = +0 | 21-100 = +5 | 100-500 = +10 | 500+ = +20
-- Languages: only 1 = -5 | 2-3 = +0 | 4+ = +5
-- README profile: has one = +5 | none = -5
-- Cap between 1-100. Average devs = 15-45. Only legends score 60+. Beginners with empty repos = 10-25.
-
-THIS PROFILE's DATA: ${githubData.totalStars} total stars, ${githubData.ownRepoCount} own repos out of ${githubData.publicRepos} total (${githubData.forkedCount} forks), ${githubData.followers} followers, ${githubData.accountAge} years on GitHub, languages: ${githubData.topLanguages.join(', ') || 'none'}. ${githubData.readme ? 'Has README.' : 'No README.'} CALCULATE THE SCORE HONESTLY.
-
-CRITICAL RULES:
-- Every roast line MUST mention specific data (repo names, exact numbers, languages used)
-- The bangerQuote must be so brutal yet funny that someone would tweet it immediately
-- NO generic developer jokes. Everything must be about THIS specific person's profile
-- Use their bio against them if they have one
-- If they have embarrassingly few stars/followers, mention the exact numbers
-${mode === 'savage' ? '- THIS IS SAVAGE MODE. Your roast should make them consider deleting their GitHub account, switching to gardening as a career, and changing their name. Every line is a WAR CRIME against their coding self-esteem. Make them WHEEZE. Make them CRY. Make them screenshot it and send it to friends because it\'s THAT good.' : ''}
-Return ONLY valid JSON, no markdown fences.`;
+CRITICAL: Return ONLY valid JSON, no markdown fences.`;
 
         // 3. Call Groq API
         const text = await callGroq(prompt);
 
         // 4. Parse JSON
-        const cleaned = text.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
-        const data = JSON.parse(cleaned);
+        const data = extractJSON(text);
 
         // 5. Cache the result (24h TTL)
         await setInCache(cacheKey, data);
@@ -196,12 +250,17 @@ Return ONLY valid JSON, no markdown fences.`;
         res.json(data);
     } catch (err) {
         console.error('Roast error:', err.message);
-        const msg = err.message.includes('GROQ_API_KEY')
-            ? 'GROQ_API_KEY not configured. Add it to server/.env'
-            : err.message.includes('429')
-                ? 'Rate limited. Please wait a moment and try again.'
-                : 'Failed to generate roast. Check server logs.';
-        res.status(500).json({ error: msg });
+        
+        // Fallback: If AI call or parse fails, deliver high-quality procedural roast instead of breaking
+        try {
+            console.log(`🛡️ Serving procedural fallback roast for @${githubData.username}`);
+            const fallback = generateFallbackRoast(githubData, mode);
+            await setInCache(cacheKey, fallback);
+            return res.json(fallback);
+        } catch (fallbackErr) {
+            console.error('Fallback error:', fallbackErr.message);
+            res.status(500).json({ error: 'Failed to generate roast: ' + err.message });
+        }
     }
 });
 
