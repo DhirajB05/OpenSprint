@@ -1,6 +1,8 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import confetti from 'canvas-confetti';
+import { motion } from 'framer-motion';
 
 const API = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
@@ -41,7 +43,12 @@ function ScoreRing({ score }) {
 /* ─── Meme Card with CSS text overlay ─── */
 function MemeCard({ meme }) {
     return (
-        <div className="meme-card">
+        <motion.div
+            className="meme-card"
+            whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+            whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+        >
             <div className="meme-image-wrap">
                 <img src={meme.imageUrl} alt={meme.templateName} className="meme-img" crossOrigin="anonymous" />
                 {meme.topText && (
@@ -52,7 +59,7 @@ function MemeCard({ meme }) {
                 )}
             </div>
             <div className="meme-template-name">{meme.templateName}</div>
-        </div>
+        </motion.div>
     );
 }
 
@@ -62,10 +69,23 @@ export default function Results() {
     const [memes, setMemes] = useState([]);
     const [memesLoading, setMemesLoading] = useState(false);
     const hasFetchedMemes = useRef(false);
+    const hasFiredConfetti = useRef(false);
 
     useEffect(() => {
         if (!state) navigate('/');
     }, [state, navigate]);
+
+    // Confetti payoff effect when roast result renders
+    useEffect(() => {
+        if (state?.roastData && !state?.error && !hasFiredConfetti.current) {
+            hasFiredConfetti.current = true;
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 },
+            });
+        }
+    }, [state]);
 
     // Auto-fetch memes when roast data is available
     useEffect(() => {
@@ -121,9 +141,16 @@ export default function Results() {
                             </div>
                         )}
                     </div>
-                    <button className="action-btn secondary" style={{ marginTop: '1.5rem' }} onClick={() => navigate('/')}>
+                    <motion.button
+                        className="action-btn secondary"
+                        style={{ marginTop: '1.5rem' }}
+                        onClick={() => navigate('/')}
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    >
                         ← Try Another Username
-                    </button>
+                    </motion.button>
                 </div>
             </div>
         );
@@ -141,17 +168,36 @@ export default function Results() {
         <div className="results">
             <div className="results-inner">
                 {/* Header */}
-                <div className="results-header">
-                    <button className="back-btn" onClick={() => navigate('/')} id="back-btn">
+                <motion.div
+                    className="results-header"
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.4 }}
+                >
+                    <motion.button
+                        className="back-btn"
+                        onClick={() => navigate('/')}
+                        id="back-btn"
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    >
                         ← New Roast
-                    </button>
+                    </motion.button>
                     <span className={`mode-badge ${mode}`}>
                         {mode === 'friendly' ? '🤝 Friendly' : mode === 'sarcastic' ? '😏 Sarcastic' : '🔥 Savage'} Mode
                     </span>
-                </div>
+                </motion.div>
 
                 {/* Profile Hero */}
-                <div className="profile-hero">
+                <motion.div
+                    className="profile-hero"
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.4, delay: 0.08 }}
+                >
                     <div className="avatar-wrap animate-bounce-in">
                         {githubData?.avatar && (
                             <img src={githubData.avatar} alt={githubData.username} className="avatar-img" crossOrigin="anonymous" />
@@ -181,11 +227,17 @@ export default function Results() {
                         </div>
                     </div>
                     {score !== undefined && <ScoreRing score={score} />}
-                </div>
+                </motion.div>
 
                 {/* Roast Lines */}
                 {roastLines.length > 0 && (
-                    <div className="roast-card">
+                    <motion.div
+                        className="roast-card"
+                        initial={{ opacity: 0, y: 24 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0.3 }}
+                        transition={{ duration: 0.4, delay: 0.16 }}
+                    >
                         <div className="roast-card-title">🔥 The Roast</div>
                         <div className="roast-lines">
                             {roastLines.map((line, i) => {
@@ -200,19 +252,31 @@ export default function Results() {
                                 );
                             })}
                         </div>
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* Banger Quote */}
                 {bangerQuote && (
-                    <div className="banger-quote">
+                    <motion.div
+                        className="banger-quote"
+                        initial={{ opacity: 0, y: 24 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0.3 }}
+                        transition={{ duration: 0.4, delay: 0.24 }}
+                    >
                         <p className="banger-text">{bangerQuote}</p>
                         <p className="banger-hint">⬆️ Your banger quote — screenshot and post this</p>
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* ─── AUTO-GENERATED MEMES ─── */}
-                <div className="memes-section">
+                <motion.div
+                    className="memes-section"
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.4, delay: 0.32 }}
+                >
                     <div className="memes-section-title">🎭 Your Roast Memes</div>
                     <p className="memes-section-sub">AI picked the perfect memes for your roast. Screenshot & share!</p>
 
@@ -228,14 +292,20 @@ export default function Results() {
                             ))}
                         </div>
                     ) : null}
-                </div>
+                </motion.div>
 
                 {/* Tip */}
                 {tip && (
-                    <div className="tip-box">
+                    <motion.div
+                        className="tip-box"
+                        initial={{ opacity: 0, y: 24 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, amount: 0.3 }}
+                        transition={{ duration: 0.4, delay: 0.40 }}
+                    >
                         <div className="tip-title">💡 AI's Actual Advice</div>
                         {tip}
-                    </div>
+                    </motion.div>
                 )}
 
                 {/* Score label */}
@@ -246,39 +316,57 @@ export default function Results() {
                 )}
 
                 {/* Actions */}
-                <div className="action-grid">
-                    <button
+                <motion.div
+                    className="action-grid"
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.4, delay: 0.48 }}
+                >
+                    <motion.button
                         id="roast-card-btn"
                         className="action-btn primary"
                         onClick={() => navigate('/card', { state: { githubData, roastData, mode } })}
+                        whileHover={{ x: -2, y: -2, boxShadow: "8px 8px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
                         🃏 Roast Card
-                    </button>
-                    <a
+                    </motion.button>
+                    <motion.a
                         id="share-twitter-btn"
                         className="action-btn twitter"
                         href={tweetUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
                         𝕏 Share on X
-                    </a>
-                    <a
+                    </motion.a>
+                    <motion.a
                         id="share-linkedin-btn"
                         className="action-btn linkedin"
                         href={linkedinUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
                         in Share on LinkedIn
-                    </a>
-                    <button
+                    </motion.a>
+                    <motion.button
                         className="action-btn secondary"
                         onClick={() => navigate('/')}
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
                         🔁 Roast Someone Else
-                    </button>
-                </div>
+                    </motion.button>
+                </motion.div>
             </div>
         </div>
     );

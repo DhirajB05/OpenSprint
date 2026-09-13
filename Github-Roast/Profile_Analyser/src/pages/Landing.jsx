@@ -1,5 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useGSAP } from '@gsap/react';
+import gsap from 'gsap';
+import { Github } from 'lucide-react';
+import Hero from '../components/Hero';
 
 const TIPS = [
     '🔥 Pro tip: "fix" is a valid commit message. So is "aaaa".',
@@ -15,17 +20,36 @@ export default function Landing() {
     const [username, setUsername] = useState('');
     const [mode, setMode] = useState('savage');
     const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [pendingUsername, setPendingUsername] = useState('');
+    const buttonRef = useRef(null);
     const navigate = useNavigate();
+
+    useGSAP(() => {
+        if (isLoading && buttonRef.current) {
+            gsap.to(buttonRef.current, {
+                x: "+=4",
+                duration: 0.08,
+                repeat: 5,
+                yoyo: true,
+                ease: "power1.inOut",
+                onComplete: () => {
+                    navigate('/loading', { state: { username: pendingUsername, mode } });
+                }
+            });
+        }
+    }, [isLoading]);
 
     const handleRoast = (e) => {
         e.preventDefault();
         const clean = username.trim().replace('@', '');
         if (!clean) return setError('Enter a GitHub username first 👀');
         setError('');
-        navigate('/loading', { state: { username: clean, mode } });
+        setPendingUsername(clean);
+        setIsLoading(true);
     };
 
-    const tip = TIPS[Math.floor(Math.random() * TIPS.length)];
+    const [tip] = useState(() => TIPS[Math.floor(Math.random() * TIPS.length)]);
 
     return (
         <div className="landing">
@@ -37,34 +61,43 @@ export default function Landing() {
 
             {/* Navbar */}
             <nav className="navbar">
+                <div className="nav-spacer" />
                 <div className="nav-logo">
-                    <span className="dot" style={{ background: '#FF6B2C' }} />
-                    <span className="dot" style={{ background: '#2DB84B' }} />
-                    <span className="dot" style={{ background: '#7B5EA7' }} />
-                    ROAST · MACHINE
+                    <img
+                        src="/fire-logo.png"
+                        alt="Fire Logo"
+                        className="nav-fire-logo"
+                    />
+                    <span>YOUR GITHUB DESERVES A ROAST</span>
                 </div>
                 <div className="nav-links">
-                    <span className="nav-link active">Roast</span>
-                    <span className="nav-link">Meme</span>
-                    <span className="nav-link">About</span>
+                    <a
+                        href="https://github.com/DhirajB05"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="nav-github-btn"
+                        title="GitHub Profile"
+                    >
+                        <Github size={15} />
+                        <span>GitHub</span>
+                    </a>
                 </div>
             </nav>
 
-            <div className="hero-badge">
-                ⚡ AI-Powered GitHub Roaster
-            </div>
+            {/* Awwwards-Caliber Neo-Brutalist Hero Section */}
+            <Hero />
 
-            <h1 className="hero-title">
-                Your GitHub
-                <br />
-                <span className="gradient">Deserves A Roast</span>
-            </h1>
-
-            <p className="hero-sub">
-                Drop any GitHub username and watch AI brutally (but lovingly) tear apart your commit history, empty repos, and questionable tech choices.
-            </p>
-
-            <div className="input-card">
+            {/* Input Card Scroll Reveal */}
+            <motion.div
+                className="input-card"
+                style={{ animation: 'none' }}
+                initial={{ opacity: 0, y: 24, rotate: -1.2 }}
+                whileInView={{ opacity: 1, y: 0, rotate: -1.2 }}
+                whileHover={{ rotate: 0, y: -2 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+                <div className="input-card-fire-badge">🔥 ROAST ENGINE</div>
                 {error && <div className="error-box">⚠️ {error}</div>}
 
                 <form onSubmit={handleRoast}>
@@ -91,22 +124,35 @@ export default function Landing() {
                             { id: 'sarcastic', emoji: '😏', label: 'Sarcastic', cls: 'sarcastic-mode' },
                             { id: 'savage', emoji: '🔥', label: 'Savage', cls: 'savage-mode' },
                         ].map(m => (
-                            <button
+                            <motion.button
                                 key={m.id}
                                 type="button"
                                 id={`mode-${m.id}`}
                                 className={`mode-btn ${m.cls} ${mode === m.id ? 'active' : ''}`}
                                 onClick={() => setMode(m.id)}
+                                whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                                whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                                animate={mode === m.id ? { scale: [1, 1.05, 1] } : { scale: 1 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
                             >
                                 <span className="mode-emoji">{m.emoji}</span>
                                 {m.label}
-                            </button>
+                            </motion.button>
                         ))}
                     </div>
 
-                    <button id="roast-btn" type="submit" className="roast-btn">
+                    <motion.button
+                        ref={buttonRef}
+                        id="roast-btn"
+                        type="submit"
+                        className="roast-btn"
+                        disabled={isLoading}
+                        whileHover={!isLoading ? { x: -2, y: -2, boxShadow: "6px 6px 0px #000" } : {}}
+                        whileTap={!isLoading ? { x: 2, y: 2, boxShadow: "0px 0px 0px #000" } : {}}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    >
                         🔥 Roast Me !
-                    </button>
+                    </motion.button>
                 </form>
 
                 <p className="landing-hint">
@@ -121,22 +167,45 @@ export default function Landing() {
                 <div className="loading-tip" style={{ marginTop: '1rem' }}>
                     {tip}
                 </div>
-            </div>
+            </motion.div>
 
-            <div className="social-proof">
-                <div className="stat-pill">
+            {/* Social Proof Scroll Reveal */}
+            <motion.div
+                className="social-proof"
+                style={{ animation: 'none' }}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.4, delay: 0.24 }}
+            >
+                <motion.div
+                    className="stat-pill"
+                    whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                    whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                >
                     <span className="stat-num">26</span>
                     <span className="stat-label">Meme Templates</span>
-                </div>
-                <div className="stat-pill">
+                </motion.div>
+                <motion.div
+                    className="stat-pill"
+                    whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                    whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                >
                     <span className="stat-num">3</span>
                     <span className="stat-label">Roast Modes</span>
-                </div>
-                <div className="stat-pill">
+                </motion.div>
+                <motion.div
+                    className="stat-pill"
+                    whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                    whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                >
                     <span className="stat-num">∞</span>
                     <span className="stat-label">Tears Shed</span>
-                </div>
-            </div>
+                </motion.div>
+            </motion.div>
         </div>
     );
 }

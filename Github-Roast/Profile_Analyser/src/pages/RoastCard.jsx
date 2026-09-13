@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
+import { motion } from 'framer-motion';
 
 export default function RoastCard() {
     const { state } = useLocation();
@@ -14,7 +15,7 @@ export default function RoastCard() {
 
     if (!state) return null;
 
-    const { githubData, roastData, mode } = state;
+    const { githubData, roastData } = state;
     const { archetype, bangerQuote, score, scoreLabel, roastLines } = roastData || {};
 
     const scoreColor = score >= 70 ? '#22c55e' : score >= 40 ? '#FFD700' : '#ef4444';
@@ -48,12 +49,23 @@ export default function RoastCard() {
 
     return (
         <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '2rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ width: '100%', maxWidth: '640px' }}>
+            <motion.div
+                style={{ width: '100%', maxWidth: '640px' }}
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+            >
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                    <button className="back-btn" onClick={() => navigate('/results', { state })}>
+                    <motion.button
+                        className="back-btn"
+                        onClick={() => navigate('/results', { state })}
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    >
                         ← Back to Roast
-                    </button>
+                    </motion.button>
                     <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>📸 Share-ready card</span>
                 </div>
 
@@ -174,31 +186,40 @@ export default function RoastCard() {
 
                 {/* Download / Share buttons */}
                 <div className="action-grid" style={{ marginTop: '1.5rem' }}>
-                    <button
+                    <motion.button
                         id="download-card-btn"
                         className="action-btn primary"
                         onClick={handleDownload}
                         disabled={downloading}
+                        whileHover={!downloading ? { x: -2, y: -2, boxShadow: "8px 8px 0px #000" } : {}}
+                        whileTap={!downloading ? { x: 2, y: 2, boxShadow: "0px 0px 0px #000" } : {}}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
                         {downloading ? '⏳ Capturing...' : '⬇️ Download Card PNG'}
-                    </button>
-                    <a
+                    </motion.button>
+                    <motion.a
                         id="share-card-twitter"
                         className="action-btn twitter"
                         href={tweetUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
                         𝕏 Tweet This Card
-                    </a>
-                    <button
+                    </motion.a>
+                    <motion.button
                         className="action-btn secondary"
                         onClick={() => navigate('/results', { state })}
+                        whileHover={{ x: -2, y: -2, boxShadow: "6px 6px 0px #000" }}
+                        whileTap={{ x: 2, y: 2, boxShadow: "0px 0px 0px #000" }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                     >
                         ← Back to Roast
-                    </button>
+                    </motion.button>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 }
